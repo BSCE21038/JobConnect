@@ -48,71 +48,85 @@ router.post('/:id/jd', requireAuth(['EMPLOYER']), loadMyCompany, upload.single('
 // ---------------- Public / Shared: get + list + search ----------------
 
 // GET /jobs/:id
+// replace the whole handler
 router.get('/:id', async (req, res) => {
-  const job = await Job.findByPk(req.params.id, { include: [{ model: Company, attributes: ['id','name','logo_url'] }] });
-  if (!job || !job.is_active) return res.status(404).json({ error: 'Not found' });
-  res.json({ job });
+  const job = await Job.findByPk(req.params.id, {
+    include: [{ model: Company, attributes: ['id','name','logo_url'] }]
+  });
+  if (!job) return res.status(404).json({ error: 'Not found' });
+
+  // who is calling?
+  const hdr = req.headers.authorization || '';
+  const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : null;
+  let isOwnerEmployer = false;
+  let seekerApplied = false;
+
+  if (token) {
+    try {
+      const { verifyAccess } = require('../utils/jwt');
+      const decoded = verifyAccess(token); // { id, role }
+      if (decoded?.role === 'EMPLOYER') {
+        const myCo = await Company.findOne({ where: { user_id: decoded.id } });
+        if (myCo && myCo.id === job.company_id) isOwnerEmployer = true;
+      } else if (decoded?.role === 'SEEKER') {
+        const { JobSeeker, Application } = require('../../models');
+        const seeker = await JobSeeker.findOne({ where: { user_id: decoded.id } });
+        if (seeker) {
+          const existing = await Application.findOne({ where: { job_id: job.id, seeker_id: seeker.id } });
+          seekerApplied = !!existing;
+        }
+      }
+    } catch {}
+  }
+
+  // count a view when not the owning employer
+  if (!isOwnerEmployer) { try { await job.increment('views_count'); } catch {} }
+
+  const expired = job.expires_at && new Date(job.expires_at) < new Date();
+  const can_apply = job.is_active && !expired;
+
+  res.json({ job, meta: { expired, can_apply, seekerApplied } });
 });
+
+
+
 
 // GET /jobs   (public list with q + filters + pagination)
 router.get('/', async (req, res) => {
-  const { q, location, type, minSalary, maxSalary, page = 1, limit = 12 } = req.query;
-  const offset = (Number(page) - 1) * Number(limit);
-
-  // If q present → FULLTEXT search (MySQL)
-  if (q && q.trim()) {
-    const rows = await sequelize.query(
-      `
-      SELECT j.*, c.name AS company_name, c.logo_url
-      FROM Jobs j
-      JOIN Companies c ON c.id = j.company_id
-      WHERE j.is_active = 1
-        AND MATCH (j.title, j.description, j.location) AGAINST (:q IN NATURAL LANGUAGE MODE)
-        ${location ? 'AND j.location = :location' : ''}
-        ${type ? 'AND j.job_type = :type' : ''}
-        ${minSalary ? 'AND j.salary_min >= :minSalary' : ''}
-        ${maxSalary ? 'AND j.salary_max <= :maxSalary' : ''}
-      ORDER BY j.createdAt DESC
-      LIMIT :limit OFFSET :offset
-      `,
-      {
-        replacements: {
-          q,
-          location,
-          type,
-          minSalary: minSalary ? Number(minSalary) : undefined,
-          maxSalary: maxSalary ? Number(maxSalary) : undefined,
-          limit: Number(limit),
-          offset
-        },
-        type: QueryTypes.SELECT
-      }
-    );
-    return res.json({ items: rows, page: Number(page) });
-  }
-
-  // No q → simple filters via Sequelize
-  const where = { is_active: true };
-  if (location) where.location = location;
+  const { q, location, type, page = 1, include_inactive } = req.query;
+  const where = { };
+  if (!include_inactive) where.is_active = true;           // default: only active
+  if (q) where.title = { [Op.like]: `%${q}%` };
+  if (location) where.location = { [Op.like]: `%${location}%` };
   if (type) where.job_type = type;
-  if (minSalary) where.salary_min = { [Op.gte]: Number(minSalary) };
-  if (maxSalary) where.salary_max = { ...(where.salary_max || {}), [Op.lte]: Number(maxSalary) };
 
+  const pageSize = 6;
   const { rows, count } = await Job.findAndCountAll({
-    where,
-    include: [{ model: Company, attributes: ['id','name','logo_url'] }],
-    order: [['createdAt','DESC']],
-    limit: Number(limit),
-    offset
-  });
-  res.json({ items: rows, page: Number(page), total: count });
+     where,
+     include: [{ model: Company, attributes: ['id','name','logo_url'] }],
+     limit: pageSize,
+     offset: (Number(page) - 1) * pageSize,
+     order: [['createdAt', 'DESC']]
+   });
+
+  // add flags like we do for detail
+  const items = rows.map(j => {
+     const expired = j.expires_at && new Date(j.expires_at) < new Date();
+     const can_apply = j.is_active && !expired;
+     return { ...j.toJSON(), meta: { expired, can_apply } };
+   });
+
+const totalPages = Math.max(1, Math.ceil(count / pageSize));
+res.json({ items, total: count, page: Number(page), totalPages, pageSize });
 });
+
 
 // POST /jobs/:id/apply  → idempotent (unique index)
 router.post('/:id/apply', requireAuth(['SEEKER']), async (req, res) => {
   const job = await Job.findByPk(req.params.id);
-  if (!job || !job.is_active) return res.status(404).json({ error: 'Job not found' });
-
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  const expired = job.expires_at && new Date(job.expires_at) < new Date();
+  if (!job.is_active || expired) return res.status(400).json({ error: 'Job is inactive or expired' });
   const seeker = await JobSeeker.findOne({ where: { user_id: req.user.id } });
   if (!seeker) return res.status(400).json({ error: 'Create profile first' });
 

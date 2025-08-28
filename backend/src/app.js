@@ -10,6 +10,7 @@ const seekerRoutes = require('./routes/seeker');
 const employerRoutes = require('./routes/employer');
 const applicationsRoutes = require('./routes/applications');
 const { Notification } = require('../models');
+const analyticsRoutes = require('./routes/analytics');
 
 require('dotenv').config();
 
@@ -27,6 +28,7 @@ app.use('/jobs', jobRoutes);
 app.use('/seeker', seekerRoutes);
 app.use('/employer', employerRoutes);
 app.use('/applications', applicationsRoutes);
+app.use('/analytics', analyticsRoutes);
 
 app.get('/healthz', async (req, res) => {
   try {
