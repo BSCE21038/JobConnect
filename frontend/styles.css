@@ -250,3 +250,31 @@ button:disabled {
   background: #3730a3;         /* darker indigo */
   transform: translateY(-1px);
 }
+
+form.form .row {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;  /* spacing between rows */
+}
+
+form.form input,
+form.form select,
+form.form textarea {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 10px; /* spacing between multiple inputs in same row */
+}
+
+.primary-btn {
+  background: #00083d;
+  color: white;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.primary-btn:hover {
+  opacity: 0.9;
+}

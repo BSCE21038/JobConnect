@@ -32,24 +32,48 @@ export default function EditJob(){
 
   return (
     <div className="card">
-      <h2>Edit Job</h2>
-      <form onSubmit={handleSubmit(onSubmit)}>
+    <h2>Edit Job</h2>
+    <form onSubmit={handleSubmit(onSubmit)} className="form">
+      <div className="row">
         <input placeholder="Title" {...register("title",{required:true})}/>
+      </div>
+
+      <div className="row">
         <select {...register("job_type")}>
           <option value="FULL_TIME">Full-time</option>
           <option value="PART_TIME">Part-time</option>
           <option value="REMOTE">Remote</option>
         </select>
+      </div>
+
+      <div className="row">
         <input placeholder="Location" {...register("location")}/>
+      </div>
+
+      <div className="row">
         <input placeholder="Min Salary" type="number" {...register("salary_min")}/>
         <input placeholder="Max Salary" type="number" {...register("salary_max")}/>
+      </div>
+
+      <div className="row">
         <textarea rows={6} placeholder="Description" {...register("description",{required:true})}/>
-        <div className="row">
-          <input type="date" {...register("expires_at")}/>
-          <label className="row">Upload JD (PDF) <input type="file" accept="application/pdf" onChange={uploadJD}/></label>
-          <button>Save</button>
-        </div>
-      </form>
-    </div>
+      </div>
+
+      <div className="row">
+        <input type="date" {...register("expires_at")}/>
+      </div>
+
+      {/* <div className="row">
+        <label className="row" style={{gap:"8px"}}>
+          Upload JD (PDF)
+          <input type="file" accept="application/pdf" onChange={uploadJD}/>
+        </label>
+      </div> */}
+
+      <div className="row">
+        <button className="primary-btn">Save</button>
+      </div>
+    </form>
+  </div>
   );
 }

@@ -91,7 +91,12 @@ const [totalPages, setTotalPages] = useState(1);
                   </>
                 )}
               </p>
-              <p><Link href="/jobs" className="link-btn">View</Link></p>
+              <p>
+  <Link href={`/jobs/${j.id}`} className="link-btn">
+    View
+  </Link>
+</p>
+
             </div>
           );
         })}

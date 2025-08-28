@@ -1,3 +1,4 @@
+// pages/seeker/profile.js
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import api, { loadAuth } from "../../lib/api";
@@ -14,32 +15,66 @@ export default function SeekerProfile(){
   }, [setValue]);
 
   async function onSubmit(values){
-    const { data } = await api.post("/seeker", values);
+    await api.post("/seeker", values);
     alert("Saved profile");
   }
 
-  async function uploadResume(e){
-    const file = e.target.files?.[0]; if (!file) return;
-    const fd = new FormData(); fd.append("resume", file);
-    await api.post("/seeker/resume", fd, { headers:{ "Content-Type":"multipart/form-data" }});
-    alert("Resume uploaded");
+ async function uploadResume(e){
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  // client-side validation (matches backend constraints)
+  if (file.type !== "application/pdf") {
+    alert("Please upload a PDF file.");
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    alert("Max file size is 5MB.");
+    return;
   }
 
+  const fd = new FormData();
+  fd.append("resume", file, file.name); // field name must match multer .single('resume')
+
+  try {
+    // DO NOT set Content-Type — let Axios add the boundary
+    await api.post("/seeker/resume", fd);
+    alert("Resume uploaded");
+  } catch (err) {
+    const msg =
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      "Upload failed";
+    alert(msg);
+  }
+}
+
   return (
-            <RequireRole role="SEEKER">
-    
-    <div className="card">
-      <h2>Seeker Profile</h2>
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <input placeholder="Headline" {...register("headline")}/>
-        <textarea rows={6} placeholder="About" {...register("about")}/>
-        {/* skills/experience/education UIs can be added later; you already have backend tables for those */}
-        <div className="row">
-          <button>Save</button>
-          <label className="row">Upload Resume (PDF ≤5MB) <input type="file" accept="application/pdf" onChange={uploadResume}/></label>
-        </div>
-      </form>
-    </div>
+    <RequireRole role="SEEKER">
+      <div className="card">
+        <h2>Seeker Profile</h2>
+        <form onSubmit={handleSubmit(onSubmit)} className="form">
+          <div className="row">
+            <input placeholder="Headline" {...register("headline")} />
+          </div>
+
+          <div className="row">
+            <textarea rows={6} placeholder="About" {...register("about")} />
+          </div>
+
+         
+
+          <div className="row">
+            <label className="file-label">
+              Upload Resume (PDF ≤5MB)
+              <input type="file" accept="application/pdf" onChange={uploadResume} />
+            </label>
+          </div>
+           <div className="row">
+            <button className="primary-btn">Save</button>
+          </div>
+        </form>
+      </div>
     </RequireRole>
   );
 }

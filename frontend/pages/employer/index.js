@@ -6,21 +6,33 @@ export default function EmployerHome(){
   const [summary, setSummary] = useState(null);
   const [jobs, setJobs] = useState([]);
 
-  async function load(){
-    const [sum, per] = await Promise.all([
-      api.get("/analytics/summary"),
-      api.get("/analytics/jobs")
-    ]);
-    setSummary(sum.data);
-    setJobs(per.data.items || []);
-  }
+async function load(){
+  const [sumRes, jobsRes] = await Promise.allSettled([
+    api.get("/analytics/summary"),
+    api.get("/analytics/jobs"),
+  ]);
+
+  const safeSummary =
+    sumRes.status === "fulfilled"
+      ? sumRes.value.data
+      : { totalJobs: 0, activeJobs: 0, expiredJobs: 0, totalApplicants: 0 };
+
+  const safeJobs =
+    jobsRes.status === "fulfilled"
+      ? (jobsRes.value.data.items || [])
+      : [];
+
+  setSummary(safeSummary);
+  setJobs(safeJobs);
+}
+
 
   useEffect(() => { if (loadAuth()) load(); }, []);
 
   return (
     <>
       <h2>Employer Dashboard</h2>
-      <p><Link href="/employer/new-job">Post a job →</Link></p>
+      <p><Link href="/employer/new-job" className="link-btn">Post a job</Link></p>
 
       {/* Totals */}
       <div className="grid">
@@ -44,7 +56,7 @@ export default function EmployerHome(){
         <p>Applicants: <b>{j.applicants}</b></p>
         {/* <p>Views: <b>{j.views}</b></p> */}
         <div className="row">
-          <a className="link-like" href={`/employer/jobs/${j.id}/edit`}>Edit</a>
+          <a className="link-like" href={`/jobs/${j.id}/edit`}>Edit</a>
           <span style={{flex:1}}/>
           <a className="link-like" href={`/employer/${j.id}`}>View applicants</a>
           <span style={{flex:1}}/>

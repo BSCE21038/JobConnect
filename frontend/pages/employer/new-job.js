@@ -9,38 +9,69 @@ export default function NewJob(){
 
   useEffect(()=>{ if (!loadAuth()) alert("Login as EMPLOYER first"); },[]);
 
-  async function onSubmit(values){
-    // API expects title, description, location, salary_min, salary_max, job_type, expires_at
+async function onSubmit(values){
+  try {
     values.salary_min = values.salary_min ? Number(values.salary_min) : null;
     values.salary_max = values.salary_max ? Number(values.salary_max) : null;
-    const { data } = await api.post("/jobs", values);
+    values.expires_at = values.expires_at || null;
+
+    // prefer employer-scoped route
+    let res;
+    try {
+      res = await api.post("/employer/jobs", values);
+    } catch (e) {
+      // fallback if your server still uses /jobs for create
+      if (e?.response?.status === 404) {
+        res = await api.post("/jobs", values);
+      } else {
+        throw e;
+      }
+    }
+
+    const job = res.data.job || res.data.item || res.data; // be tolerant
     reset();
-    router.push(`/employer/${data.job.id}`); // go to applicants for this job
+    router.push(`/employer/${job.id}`);
+  } catch (err) {
+    const msg = err?.response?.data?.error || err?.message || "Failed to create job";
+    alert(msg);
   }
+}
+
 
   return (
-    <div className="card">
-      <h2>Post a Job</h2>
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="row">
-          <input placeholder="Title" {...register("title",{required:true})}/>
-          <select {...register("job_type")}>
-            <option value="FULL_TIME">Full-time</option>
-            <option value="PART_TIME">Part-time</option>
-            <option value="REMOTE">Remote</option>
-          </select>
-        </div>
-        <div className="row">
-          <input placeholder="Location" {...register("location")}/>
-          <input placeholder="Min Salary" type="number" {...register("salary_min")}/>
-          <input placeholder="Max Salary" type="number" {...register("salary_max")}/>
-        </div>
+   <div className="card">
+    <h2>Post a Job</h2>
+    <form onSubmit={handleSubmit(onSubmit)} className="form">
+      <div className="row">
+        <input placeholder="Title" {...register("title",{required:true})}/>
+        <select {...register("job_type")}>
+          <option value="FULL_TIME">Full-time</option>
+          <option value="PART_TIME">Part-time</option>
+          <option value="REMOTE">Remote</option>
+        </select>
+      </div>
+
+      <div className="row">
+        <input placeholder="Location" {...register("location")}/>
+      </div>
+
+      <div className="row">
+        <input placeholder="Min Salary" type="number" {...register("salary_min")}/>
+        <input placeholder="Max Salary" type="number" {...register("salary_max")}/>
+      </div>
+
+      <div className="row">
         <textarea placeholder="Description" rows={6} {...register("description",{required:true})}/>
-        <div className="row">
-          <input type="date" {...register("expires_at")}/>
-          <button>Create</button>
-        </div>
-      </form>
-    </div>
+      </div>
+
+      <div className="row">
+        <input type="date" {...register("expires_at")}/>
+      </div>
+
+      <div className="row">
+        <button className="primary-btn">Create</button>
+      </div>
+    </form>
+  </div>
   );
 }
